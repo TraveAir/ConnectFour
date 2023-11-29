@@ -5,13 +5,19 @@ from typing import Tuple, List
 import sys
 import time
 import random
+import msvcrt
+import keyboard
+
+EMPTY_SYMBOL = "-"
+PLAYER_ONE_SYMBOL = "X"
+PLAYER_TWO_SYMBOL = "O"
 
 
 class Board:
     """Connect 4 board"""
 
     def __init__(self, width: int = 7, height: int = 6):
-        self.board = [["-" for i in range(width)] for j in range(height)]
+        self.board = [[EMPTY_SYMBOL for i in range(width)] for j in range(height)]
 
     @property
     def num_rows(self) -> int:
@@ -24,10 +30,7 @@ class Board:
         return len(self.board[0])
 
     def __repr__(self) -> str:
-        ret_string = ""
-        for column_index in range(self.num_cols):
-            ret_string += f"{column_index} "
-        ret_string += "\n\n"
+        ret_string = "\n"
         for row in self.board:
             ret_string += ""
             for slot in row:
@@ -38,7 +41,7 @@ class Board:
     def get_move_indicies(self, col: int) -> Tuple[int, int]:
         """Gets the indicies for the lowes open spot in the selected col"""
         for row_index in range(self.num_rows):
-            if self.board[(row_index + 1) * -1][col] == "-":
+            if self.board[(row_index + 1) * -1][col] == EMPTY_SYMBOL:
                 return self.num_rows - row_index - 1, col
         raise ValueError("Column move error")
 
@@ -111,7 +114,7 @@ class Board:
     def check_for_stalemate(self) -> bool:
         """Returns true if all slots on top row are full"""
         for slot in self.board[0]:
-            if slot == "-":
+            if slot == EMPTY_SYMBOL:
                 return False
         return True
 
@@ -123,7 +126,7 @@ class Board:
         """Returns a list of columns where a move is legal"""
         legal_moves = []
         for col_index in range(len(self.board[0])):
-            if self.board[0][col_index] == "-":
+            if self.board[0][col_index] == EMPTY_SYMBOL:
                 legal_moves.append(col_index)
         return legal_moves
 
@@ -146,26 +149,14 @@ class Game:
 
     def __init__(self):
         self.board = Board()
-        self.player_one = create_player(player_number="1", symbol="X")
-        self.player_two = create_player(player_number="2", symbol="O")
+        self.player_one = create_player(player_number="1", symbol=PLAYER_ONE_SYMBOL)
+        self.player_two = create_player(player_number="2", symbol=PLAYER_TWO_SYMBOL)
         self.current_round_over = False
         self.current_player = self.player_one
         self.current_round_winner = None
 
     def __repr__(self) -> str:
-        ret_string = ""
-        ret_string += f"[{self.player_one.win_streak}] {self.player_one.name} VS {self.player_two.name} [{self.player_two.win_streak}]\n\n"
-        spacer = " " * len(self.player_one.name)
-        ret_string += spacer
-        for column_index in range(self.board.num_cols):
-            ret_string += f"{column_index} "
-        ret_string += "\n\n"
-        for row in self.board.board:
-            ret_string += spacer
-            for slot in row:
-                ret_string += str(slot) + " "
-            ret_string += "\n"
-        return ret_string
+        return f"[{self.player_one.win_streak}] {self.player_one.name[0:1]} vs {self.player_two.name[0:1]} [{self.player_two.win_streak}]\n\n"
 
     def start_new_round(self) -> None:
         """Starts a new game"""
@@ -187,7 +178,7 @@ def create_player(player_number: str, symbol: str) -> Player:
     return Player(
         name=name,
         symbol=symbol,
-        is_human=("bot" not in name),
+        is_human=("bot" not in name.lower()),
     )
 
 
@@ -204,52 +195,74 @@ def get_turn_status_bar(game: Game) -> str:
     return f"{turn_status_bar}\n{turn_msg}\n{turn_lower_bar}"
 
 
-def get_human_players_move(game: Game) -> int:
-    """Gets the players desired column"""
-
-    warn_msg = ""
-    input_msg = "Pick your column: "
-
-    def reprint():
-        clear_screen()
-        print(game)
-        print(f"{get_turn_status_bar(game)}\n\n{warn_msg}")
-
-    reprint()
-    move = input(input_msg)
-    while move not in [str(x) for x in game.board.get_legal_moves()]:
-        warn_msg = "Invalid move!"
-        reprint()
-        move = input(input_msg).upper()
-
-    return int(move)
-
-
-def get_bot_players_move(game: Game) -> int:
-    """Gets a move from the bot"""
+def print_board_and_turn(game: Game, arrow: List[str]) -> None:
+    """Prints the board and turn status bar"""
     clear_screen()
     print(game)
+    for x in arrow:
+        print(x + " ", end="")
+    print(game.board)
     print(get_turn_status_bar(game))
-    print("thnking...")
-    time.sleep(1)
+
+
+def get_human_players_move(game: Game) -> int:
+    """Gets the players desired column"""
+    time.sleep(0.3)
+    arrow_disp = []
+    for _ in range(game.board.num_cols):
+        arrow_disp.append(" ")
+    arrow_disp[0] = "↓"
+    arrow_min = 0
+    arrow_max = game.board.num_cols - 1
+
+    while True:
+        print_board_and_turn(game, arrow_disp)
+        print("Make your move!")
+        key = keyboard.read_key()
+
+        if key in ["left", "a", "A"] and arrow_disp[arrow_min] != "↓":
+            index = arrow_disp.index("↓")
+            arrow_disp[index] = " "
+            arrow_disp[index - 1] = "↓"
+        if key in ["right", "d", "D"] and arrow_disp[arrow_max] != "↓":
+            index = arrow_disp.index("↓")
+            arrow_disp[index] = " "
+            arrow_disp[index + 1] = "↓"
+        if key in ["enter", "space", "return"]:
+            if arrow_disp.index("↓") in game.board.get_legal_moves():
+                return arrow_disp.index("↓")
+        time.sleep(0.2)
+
+
+def flush_input():
+    while msvcrt.kbhit():
+        msvcrt.getch()
+
+
+def get_bot_move_choice(game: Game) -> int:
+    """Gets a move from the bot"""
     legal_moves = game.board.get_legal_moves()
-    enemy_symbol = "O" if game.current_player.symbol == "X" else "X"
+    enemy_symbol = (
+        PLAYER_TWO_SYMBOL
+        if game.current_player.symbol == PLAYER_ONE_SYMBOL
+        else PLAYER_ONE_SYMBOL
+    )
     # Check for 1 away from win
     for possible_move in legal_moves:
         row, col = game.board.get_move_indicies(possible_move)
         game.board.update(row, col, game.current_player.symbol)
         if game.board.check_if_four_connected(game.current_player.symbol):
-            game.board.update(row, col, "-")
+            game.board.update(row, col, EMPTY_SYMBOL)
             return possible_move
-        game.board.update(row, col, "-")
+        game.board.update(row, col, EMPTY_SYMBOL)
     # Check for other player about to win
     for possible_move in legal_moves:
         row, col = game.board.get_move_indicies(possible_move)
         game.board.update(row, col, enemy_symbol)
         if game.board.check_if_four_connected(enemy_symbol):
-            game.board.update(row, col, "-")
+            game.board.update(row, col, EMPTY_SYMBOL)
             return possible_move
-        game.board.update(row, col, "-")
+        game.board.update(row, col, EMPTY_SYMBOL)
     # Check if move will result in enemy winning
     undesired_moves = []
     for possible_move in legal_moves:
@@ -261,8 +274,8 @@ def get_bot_players_move(game: Game) -> int:
             game.board.update(new_row, new_col, enemy_symbol)
             if game.board.check_if_four_connected(enemy_symbol):
                 undesired_moves.append(possible_move)
-            game.board.update(new_row, new_col, "-")
-        game.board.update(row, col, "-")
+            game.board.update(new_row, new_col, EMPTY_SYMBOL)
+        game.board.update(row, col, EMPTY_SYMBOL)
     if len(undesired_moves) == len(legal_moves):
         return random.choice(legal_moves)
     desired_moves = []
@@ -272,15 +285,34 @@ def get_bot_players_move(game: Game) -> int:
     return random.choice(desired_moves)
 
 
+def animate_bot_move(game: Game, move: int) -> None:
+    """Animates the bot move"""
+    arrow_disp = []
+    for _ in range(game.board.num_cols):
+        arrow_disp.append(" ")
+    arrow_disp[0] = "↓"
+    print_board_and_turn(game, arrow_disp)
+    print("Thinking...")
+    time.sleep(1)
+    while arrow_disp.index("↓") != move:
+        index = arrow_disp.index("↓")
+        arrow_disp[index] = " "
+        arrow_disp[index + 1] = "↓"
+        print_board_and_turn(game, arrow_disp)
+        print("Thinking...")
+        time.sleep(0.2)
+    time.sleep(0.5)
+
+
 def game_loop(game: Game) -> None:
     """Main game loop"""
     while not game.current_round_over:
-        clear_screen()
-        print(game)
         if game.current_player.is_human:
             selected_move = get_human_players_move(game)
+            flush_input()
         else:
-            selected_move = get_bot_players_move(game)
+            selected_move = get_bot_move_choice(game)
+            animate_bot_move(game, selected_move)
         game.board.update(
             *game.board.get_move_indicies(selected_move),
             symbol=game.current_player.symbol,
@@ -294,6 +326,7 @@ def game_loop(game: Game) -> None:
         game.toggle_current_player()
     clear_screen()
     print(game)
+    print(game.board)
     if game.current_round_winner is None:
         print("Stalemate!!")
     else:
@@ -311,14 +344,13 @@ if __name__ == "__main__":
     g = Game()
     while True:
         game_loop(g)
-        if input("Play again? y/n: ").lower() == "y":
-            g.start_new_round()
-        else:
-            print("Goodbye!")
-            sys.exit()
-    # g.board.update(0, 0, "X")
-    # g.board.update(1, 0, "X")
-    # g.board.update(4, 2, "X")
-    # g.board.update(3, 2, "X")
-    # g.board.update(5, 2, "X")
-    # g.board.update(5, 3, "X")
+        flush_input()
+        while True:
+            play_again = input("Play again? y/n: ").lower()
+            if play_again not in ["y", "n"]:
+                continue
+            if play_again == "y":
+                g.start_new_round()
+            else:
+                print("Goodbye!")
+                sys.exit()
