@@ -46,77 +46,77 @@ class Board:
         raise ValueError("Column move error")
 
     def check_if_four_connected(self, symbol: str) -> bool:
-        """Checks if there are 4 of symbol connected"""
-        win_str = symbol * 4
-        # check horozontal
-        for row in self.board:
-            for i in range(self.num_cols - 3):
-                if "".join(row[i : i + 4]) == win_str:
-                    return True
-
-        # check vertical
-        for col_index in range(self.num_cols):
-            col_str = ""
-            for row_index in range(self.num_rows):
-                col_str += self.board[row_index][col_index]
-            for i in range(self.num_rows - 3):
-                if col_str[i : i + 4] == win_str:
-                    return True
-
-        # check diagonal
-        for row_index in range(self.num_rows):
-            for col_index in range(self.num_cols):
-                # check diagonal upper left
-                if row_index >= 3 and col_index >= 3:
-                    diag_str = ""
-                    for diag_index in range(4):
-                        diag_str += self.board[row_index - diag_index][
-                            col_index - diag_index
-                        ]
-                    if diag_str == win_str:
-                        return True
-
-                # check diagonal upper right
-                if row_index >= 3 and col_index + 3 <= self.num_cols - 1:
-                    diag_str = ""
-                    for diag_index in range(4):
-                        diag_str += self.board[row_index - diag_index][
-                            col_index + diag_index
-                        ]
-                    if diag_str == win_str:
-                        return True
-
-                # check diagonal lower left
-                if row_index + 3 <= self.num_rows - 1 and col_index >= 3:
-                    diag_str = ""
-                    for diag_index in range(4):
-                        diag_str += self.board[row_index + diag_index][
-                            col_index - diag_index
-                        ]
-                    if diag_str == win_str:
-                        return True
-
-                # check diagonal lower right
-                if (
-                    row_index + 3 <= self.num_rows - 1
-                    and col_index + 3 <= self.num_cols - 1
-                ):
-                    diag_str = ""
-                    for diag_index in range(4):
-                        diag_str += self.board[row_index + diag_index][
-                            col_index + diag_index
-                        ]
-                    if diag_str == win_str:
-                        return True
-
+        """Returns true if there are four of the same provided symbol connected"""
+        win_string = symbol * 4
+        board_layout = self.create_list_of_all_rows_cols_diags()
+        for line in board_layout:
+            if win_string in line:
+                return True
         return False
+
+    def create_list_of_all_rows_cols_diags(self) -> List[str]:
+        """Creates a list with the current state of all rows, cols, and diags"""
+        return_list = []
+        # get rows
+        for row in self.board:
+            return_list.append("".join(row))
+
+        # get cols
+        for col_index in range(self.num_cols):
+            col_str = "".join(
+                self.board[row_index][col_index] for row_index in range(self.num_rows)
+            )
+            return_list.append(col_str)
+
+        # get diags
+        # Get diagonals to the right and down
+        for diag_row in range(self.num_rows):
+            diagonal = []
+            i = 0
+            while diag_row + i < self.num_rows and i < self.num_cols:
+                diagonal.append(self.board[diag_row + i][i])
+                i += 1
+            created_list = "".join(diagonal)
+            if len(created_list) >= 4:
+                return_list.append(created_list)
+
+        for col in range(1, self.num_cols):
+            diagonal = []
+            i = 0
+            while col + i < self.num_cols and i < self.num_rows:
+                diagonal.append(self.board[i][col + i])
+                i += 1
+            created_list = "".join(diagonal)
+            if len(created_list) >= 4:
+                return_list.append(created_list)
+
+        # Get diagonals to the right and up
+        for diag_row in range(self.num_rows):
+            diagonal = []
+            i = 0
+            while diag_row - i >= 0 and i < self.num_cols:
+                diagonal.append(self.board[diag_row - i][i])
+                i += 1
+            created_list = "".join(diagonal)
+            if len(created_list) >= 4:
+                return_list.append(created_list)
+
+        for col in range(1, self.num_cols):
+            diagonal = []
+            i = 0
+            while col + i < self.num_cols and i < self.num_rows:
+                diagonal.append(self.board[self.num_rows - 1 - i][col + i])
+                i += 1
+            created_list = "".join(diagonal)
+            if len(created_list) >= 4:
+                return_list.append(created_list)
+        return return_list
 
     def check_for_stalemate(self) -> bool:
         """Returns true if all slots on top row are full"""
-        for slot in self.board[0]:
-            if slot == EMPTY_SYMBOL:
-                return False
-        return True
+        if len(self.get_legal_moves()) == 0:
+            return True
+        return False
 
     def update(self, row_index: int, col_index: int, symbol: str) -> None:
         """Update the board at the specified location to the specified symbol"""
@@ -125,19 +125,22 @@ class Board:
     def get_legal_moves(self) -> List[int]:
         """Returns a list of columns where a move is legal"""
         legal_moves = []
-        for col_index in range(len(self.board[0])):
-            if self.board[0][col_index] == EMPTY_SYMBOL:
-                legal_moves.append(col_index)
+        for index, slot in enumerate(self.board[0]):
+            if slot == EMPTY_SYMBOL:
+                legal_moves.append(index)
         return legal_moves
 
 
 class Player:
     """Connect 4 player"""
 
-    def __init__(self, name: str, symbol: str, is_human: bool = True):
+    def __init__(
+        self, name: str, symbol: str, is_human: bool = True, bot_difficulty: int = 0
+    ):
         self.name = name
         self.symbol = symbol
         self.is_human = is_human
+        self.bot_difficulty = bot_difficulty
         self.win_streak = 0
 
     def __repr__(self) -> str:
@@ -175,10 +178,24 @@ class Game:
 def create_player(player_number: str, symbol: str) -> Player:
     """Creates a player object from user input"""
     name = input(f"Enter Player {player_number} Name: ")
+    if "bot" in name.lower():
+        is_human = False
+        bot_difficulty_input = input(
+            "Enter bot difficulty (1: Easy, 2: Medium, 3: Hard): "
+        )
+        while bot_difficulty_input not in ["1", "2", "3"]:
+            bot_difficulty_input = input(
+                "Error!\nEnter bot difficulty (1: Easy, 2: Medium, 3: Hard): "
+            )
+        bot_difficulty = int(bot_difficulty_input)
+    else:
+        is_human = True
+        bot_difficulty = 0
     return Player(
         name=name,
         symbol=symbol,
-        is_human=("bot" not in name.lower()),
+        is_human=is_human,
+        bot_difficulty=bot_difficulty,
     )
 
 
@@ -235,12 +252,24 @@ def get_human_players_move(game: Game) -> int:
 
 
 def flush_input():
+    """Flushes the input buffer. Needed due to capturing keypresses during move selection"""
     while msvcrt.kbhit():
         msvcrt.getch()
 
 
-def get_bot_move_choice(game: Game) -> int:
-    """Gets a move from the bot"""
+def bot_move_easy(game: Game) -> int:
+    """Bot makes a random move"""
+    return random.choice(game.board.get_legal_moves())
+
+
+def bot_move_medium(game: Game) -> int:
+    """Bot makes a move based on a few rules
+    1. If bot can win, make that move
+    2. If enemy can win, block that move
+    3. If bot can make a move that will result in enemy winning on their next move,
+        don't make that move
+    4. Otherwise, make a random move
+    """
     legal_moves = game.board.get_legal_moves()
     enemy_symbol = (
         PLAYER_TWO_SYMBOL
@@ -278,11 +307,92 @@ def get_bot_move_choice(game: Game) -> int:
         game.board.update(row, col, EMPTY_SYMBOL)
     if len(undesired_moves) == len(legal_moves):
         return random.choice(legal_moves)
-    desired_moves = []
-    for move in legal_moves:
-        if move not in undesired_moves:
-            desired_moves.append(move)
-    return random.choice(desired_moves)
+    return random.choice([move for move in legal_moves if move not in undesired_moves])
+
+
+def bot_move_hard(game: Game) -> int:
+    """Bot makes a move based off minimax algorithm"""
+    scores = {"win": 1000, "lose": -1000, "tie": 0, "three": 20, "two": 5}
+    winning_symbol = game.current_player.symbol
+    losing_symbol = (
+        PLAYER_TWO_SYMBOL
+        if game.current_player.symbol == PLAYER_ONE_SYMBOL
+        else PLAYER_ONE_SYMBOL
+    )
+
+    def score_current_board(board: Board) -> int:
+        board_layout = board.create_list_of_all_rows_cols_diags()
+        score = 0
+        for line in board_layout:
+            if winning_symbol * 4 in line:
+                score += scores["win"]
+            if losing_symbol * 4 in line:
+                score += scores["lose"]
+            if winning_symbol * 3 in line:
+                score += scores["three"]
+            if losing_symbol * 3 in line:
+                score += scores["three"] * -1
+            if winning_symbol * 2 in line:
+                score += scores["two"]
+            if losing_symbol * 2 in line:
+                score += scores["two"] * -1
+        return score
+
+    def minimax(
+        board: Board, depth: int, alpha: int, beta: int, is_maximizing: bool
+    ) -> Tuple[int, int]:
+        if board.check_if_four_connected(winning_symbol):
+            return scores["win"], -1
+        if board.check_if_four_connected(losing_symbol):
+            return scores["lose"], -1
+        if board.check_for_stalemate():
+            return scores["tie"], -1
+        if depth == 0:
+            score = score_current_board(board)
+            return score, -1
+        if is_maximizing:
+            best_score = -100000
+            best_col = -1
+            for move in board.get_legal_moves():
+                row, col = board.get_move_indicies(move)
+                board.update(row, col, winning_symbol)
+                score = minimax(board, depth - 1, alpha, beta, False)[0]
+                board.update(row, col, EMPTY_SYMBOL)
+                if score > best_score:
+                    best_score = score
+                    best_col = move
+                alpha = max(alpha, score)
+                if alpha >= beta:
+                    break
+            return best_score, best_col
+
+        best_score = 100000
+        best_col = -1
+        for move in board.get_legal_moves():
+            row, col = board.get_move_indicies(move)
+            board.update(row, col, losing_symbol)
+            score = minimax(board, depth - 1, alpha, beta, True)[0]
+            board.update(row, col, EMPTY_SYMBOL)
+            if score < best_score:
+                best_score = score
+                best_col = move
+            beta = min(beta, score)
+            if alpha >= beta:
+                break
+        return best_score, best_col
+
+    return minimax(game.board, 6, -100000, 100000, True)[1]
+
+
+def get_bot_move_choice(game: Game) -> int:
+    """Gets a move from the bot based on the bots difficulty"""
+    if game.current_player.bot_difficulty == 1:
+        return bot_move_easy(game)
+
+    elif game.current_player.bot_difficulty == 2:
+        return bot_move_medium(game)
+    else:
+        return bot_move_hard(game)
 
 
 def animate_bot_move(game: Game, move: int) -> None:
@@ -311,6 +421,8 @@ def game_loop(game: Game) -> None:
             selected_move = get_human_players_move(game)
             flush_input()
         else:
+            print_board_and_turn(game, [" " for _ in range(game.board.num_cols)])
+            print("Thinking...")
             selected_move = get_bot_move_choice(game)
             animate_bot_move(game, selected_move)
         game.board.update(
@@ -351,6 +463,6 @@ if __name__ == "__main__":
                 continue
             if play_again == "y":
                 g.start_new_round()
-            else:
-                print("Goodbye!")
-                sys.exit()
+                break
+            print("Goodbye!")
+            sys.exit()
